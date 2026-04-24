@@ -1,20 +1,21 @@
 schema_version = 1
 skill = "acquire-web-skill"
 status = "verified"
-verified_at = "2026-04-24T00:00:00Z"
-verified_by = "tento-skills-registry-bootstrap"
+verified_at = "2026-04-24T07:15:48Z"
+verified_by = "tento-skills-registry/promote-skill"
 
 [source]
-kind = "local"
+kind = "local-dangerous-intake"
 url = ""
 revision = ""
-sha256 = ""
+sha256 = "7e037f7f5e8b0429870b1166d0f8b9c2c1ba087b826abc74ba2735d533604184"
+path = "/Users/james/workspace/tento-sweatshop/skills/acquire-web-skill"
 
 [[checks]]
 name = "structural-audit"
 status = "pass"
 files_scanned = 1
-summary = "SKILL.md present; no optional support directories required."
+summary = "SKILL.md present; optional support directories validated."
 
 [[checks]]
 name = "prompt-injection-scan"
@@ -42,9 +43,14 @@ findings = 0
 
 [[checks]]
 name = "semantic-verification"
-status = "pass"
-summary = "Bootstrap skill is scoped to registry intake and explicitly treats candidate content as hostile data."
+status = "manual-pass"
+summary = "Promotion used existing local Lona skill content and current registry scanners; deeper semantic verifier automation is pending."
+
+[[sanitization]]
+path = ""
+action = "none"
+detail = "No deterministic cleanup was required by the current registry scanners before promotion."
 
 [[residual_risks]]
 severity = "medium"
-detail = "This skill guides acquisition but does not yet have automated provenance checks, deterministic sanitization, or semantic verification automation."
+detail = "Automated semantic verification, provenance checks, and package-specific policy checks are not implemented yet."

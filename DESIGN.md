@@ -33,7 +33,6 @@ before any company repo can use it.
       risky-url-patterns.toml
       unicode-policy.toml
       allowed-file-types.toml
-    tmp/
     skills-DANGEROUS/
       <candidate-skill>/
     skills-QUARANTINED/
@@ -56,9 +55,6 @@ source, the sanitized copy, and the final promoted copy.
 
 `skills-VERIFIED/` is the only consumable registry surface. Company repos symlink
 this directory or selected children from it.
-
-`tmp/` is disposable clone/download space. It should be excluded from backups,
-indexing, and company repo links.
 
 ## Trust Model
 
@@ -86,8 +82,8 @@ repeatable checks and a clear residual-risk record.
 
 ## Intake Flow
 
-1. Acquire a candidate into `tmp/` from a URL, git repository, archive, local
-   path, or `skills.sh` style source string.
+1. Acquire a candidate into a disposable system temp directory from a URL, git
+   repository, archive, local path, or `skills.sh` style source string.
 2. Copy the raw candidate into `skills-DANGEROUS/<name>/` with source metadata.
 3. Inventory files without executing anything.
 4. Reject candidates with unsupported binary payloads, git hooks, vendored
@@ -266,7 +262,7 @@ through the acquisition process. It is verified like every other skill and is
 scoped narrowly:
 
 - accept a source URL, git reference, archive, or local candidate path
-- clone or copy into `tmp/`
+- clone or copy into a disposable system temp directory
 - copy raw content into `skills-DANGEROUS`
 - run registry scanners
 - apply deterministic cleanup through registry scripts

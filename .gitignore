@@ -1,7 +1,6 @@
-# Raw intake, quarantine, and temporary clone/download areas are local only.
+# Raw intake and quarantine areas are local only.
 /skills-DANGEROUS/**
 /skills-QUARANTINED/**
-/tmp/**
 
 # Verified acquired skills and generated security logs are local registry state.
 /skills-VERIFIED/**

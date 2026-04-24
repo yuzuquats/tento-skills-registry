@@ -13,7 +13,7 @@ requests, risky URLs, hidden Unicode, or executable payloads.
 
 ## Workflow
 
-1. Create or reuse a disposable workspace under `tento-skills-registry/tmp/`.
+1. Create or reuse a disposable workspace under the system temp directory.
 2. Clone, download, or copy the candidate into that disposable location.
 3. Copy the raw candidate into `tento-skills-registry/skills-DANGEROUS/<name>/`.
 4. Inventory the candidate without running candidate-provided code.

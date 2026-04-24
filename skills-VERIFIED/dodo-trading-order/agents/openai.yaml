@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dodo Trading Order"
+  short_description: "Use Dodo's Alpaca paper trading command safely."
+  default_prompt: "Use dodo-trading.order to inspect the paper account, query assets, create an order preview, and submit only an approved Alpaca paper preview."

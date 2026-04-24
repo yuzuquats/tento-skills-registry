@@ -1,0 +1,56 @@
+schema_version = 1
+skill = "dodo-trading-order"
+status = "verified"
+verified_at = "2026-04-24T14:27:27Z"
+verified_by = "codex-local-skill-creator"
+
+[source]
+kind = "local-authored"
+url = ""
+revision = ""
+sha256 = "ac7a2ca4ae294232f3b580fdb6855e1724321315889bf63b06e114b168bd03e6"
+path = "/Users/james/workspace/tento-skills-registry/skills-VERIFIED/dodo-trading-order"
+
+[[checks]]
+name = "structural-audit"
+status = "pass"
+files_scanned = 2
+summary = "SKILL.md and agents/openai.yaml present; no bundled executable resources."
+
+[[checks]]
+name = "prompt-injection-scan"
+status = "pass"
+files_scanned = 2
+findings = 0
+
+[[checks]]
+name = "unicode-scan"
+status = "pass"
+files_scanned = 2
+findings = 0
+
+[[checks]]
+name = "url-scan"
+status = "pass"
+files_scanned = 2
+findings = 0
+
+[[checks]]
+name = "file-shape-scan"
+status = "pass"
+files_scanned = 2
+findings = 0
+
+[[checks]]
+name = "semantic-verification"
+status = "manual-pass"
+summary = "Skill is local-authored guidance for Dodo's pre-vetted dodo-trading.order command and does not add executable code."
+
+[[sanitization]]
+path = ""
+action = "none"
+detail = "No deterministic cleanup was required."
+
+[[residual_risks]]
+severity = "medium"
+detail = "The skill documents policy, but command-level submit approval is not enforced by the bridge yet."

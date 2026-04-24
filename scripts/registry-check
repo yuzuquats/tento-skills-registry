@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+SCRIPT_DIR="${SCRIPT_PATH%/*}"
+if [ "$SCRIPT_DIR" = "$SCRIPT_PATH" ]; then
+  SCRIPT_DIR='.'
+fi
+
+REGISTRY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+VERIFIED_DIR="$REGISTRY_ROOT/skills-VERIFIED"
+
+issues=0
+
+if [ ! -d "$VERIFIED_DIR" ]; then
+  printf 'review missing_verified_dir %s\n' "$VERIFIED_DIR" >&2
+  exit 1
+fi
+
+TARGETS=()
+target_count=0
+shopt -s nullglob
+for skill_dir in "$VERIFIED_DIR"/*; do
+  if [ -d "$skill_dir" ]; then
+    TARGETS+=("$skill_dir")
+    target_count=$((target_count + 1))
+  fi
+done
+shopt -u nullglob
+
+printf 'verified_skills=%s\n' "$target_count"
+
+if [ "$target_count" -gt 0 ]; then
+  for skill_dir in "${TARGETS[@]}"; do
+    skill_name="${skill_dir##*/}"
+    security_log="$VERIFIED_DIR/$skill_name.security.toml"
+
+    if [ ! -f "$security_log" ]; then
+      printf 'review missing_security_log %s\n' "$security_log"
+      issues=$((issues + 1))
+    fi
+
+    if [[ ! "$skill_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+      printf 'review unsafe_skill_name %s\n' "$skill_name"
+      issues=$((issues + 1))
+    fi
+
+    if find "$skill_dir" -type l -print -quit | grep -q .; then
+      printf 'review symlink_in_verified_skill %s\n' "$skill_dir"
+      issues=$((issues + 1))
+    fi
+
+    if find "$skill_dir" -name .git -type d -print -quit | grep -q .; then
+      printf 'review git_metadata_in_verified_skill %s\n' "$skill_dir"
+      issues=$((issues + 1))
+    fi
+
+    if find "$skill_dir" -type f -perm -111 -print -quit | grep -q .; then
+      printf 'review executable_file_in_verified_skill %s\n' "$skill_dir"
+      issues=$((issues + 1))
+    fi
+  done
+fi
+
+if [ "$target_count" -gt 0 ]; then
+  "$SCRIPT_DIR/scan-skill" "${TARGETS[@]}"
+fi
+
+printf 'registry_findings=%s\n' "$issues"
+if [ "$issues" -eq 0 ]; then
+  printf 'registry_status=clean\n'
+  exit 0
+fi
+
+printf 'registry_status=review\n'
+exit 1

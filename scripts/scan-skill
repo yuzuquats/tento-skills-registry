@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -uo pipefail
+
+if [ "$#" -eq 0 ]; then
+  printf 'usage: %s <skill-dir> [<skill-dir> ...]\n' "${0##*/}" >&2
+  exit 2
+fi
+
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+SCRIPT_DIR="${SCRIPT_PATH%/*}"
+if [ "$SCRIPT_DIR" = "$SCRIPT_PATH" ]; then
+  SCRIPT_DIR='.'
+fi
+
+status=0
+
+"$SCRIPT_DIR/audit-skills" "$@" || status=1
+"$SCRIPT_DIR/scan-prompt-injection" "$@" || status=1
+"$SCRIPT_DIR/scan-unicode-risks" "$@" || status=1
+"$SCRIPT_DIR/scan-urls" "$@" || status=1
+"$SCRIPT_DIR/scan-file-shape" "$@" || status=1
+
+exit "$status"

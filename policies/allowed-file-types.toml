@@ -1,0 +1,3 @@
+# Placeholder policy file.
+# File-shape scanning will define allowed text extensions and unsupported
+# executable, binary, archive, dependency, and generated artifact paths.

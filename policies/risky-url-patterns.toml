@@ -1,0 +1,3 @@
+# Placeholder policy file.
+# URL scanning will flag shorteners, paste sites, raw code hosts, local/private
+# network URLs, credentialed URLs, and unsafe schemes.

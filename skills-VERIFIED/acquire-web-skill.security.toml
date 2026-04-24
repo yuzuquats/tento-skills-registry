@@ -1,0 +1,50 @@
+schema_version = 1
+skill = "acquire-web-skill"
+status = "verified"
+verified_at = "2026-04-24T00:00:00Z"
+verified_by = "tento-skills-registry-bootstrap"
+
+[source]
+kind = "local"
+url = ""
+revision = ""
+sha256 = ""
+
+[[checks]]
+name = "structural-audit"
+status = "pass"
+files_scanned = 1
+summary = "SKILL.md present; no optional support directories required."
+
+[[checks]]
+name = "prompt-injection-scan"
+status = "pass"
+files_scanned = 1
+findings = 0
+
+[[checks]]
+name = "unicode-scan"
+status = "pass"
+files_scanned = 1
+findings = 0
+
+[[checks]]
+name = "url-scan"
+status = "pass"
+files_scanned = 1
+findings = 0
+
+[[checks]]
+name = "file-shape-scan"
+status = "pass"
+files_scanned = 1
+findings = 0
+
+[[checks]]
+name = "semantic-verification"
+status = "pass"
+summary = "Bootstrap skill is scoped to registry intake and explicitly treats candidate content as hostile data."
+
+[[residual_risks]]
+severity = "medium"
+detail = "This skill guides acquisition but does not yet have automated provenance checks, deterministic sanitization, or semantic verification automation."

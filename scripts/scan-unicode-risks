@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import sys
+import unicodedata
+from pathlib import Path
+
+TEXT_EXTENSIONS = {
+    ".md",
+    ".txt",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".py",
+    ".sh",
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".html",
+    ".css",
+}
+
+ZERO_WIDTH = {"\u200b", "\u200c", "\u200d", "\ufeff", "\u2060"}
+BIDI_CONTROLS = {"\u202a", "\u202b", "\u202c", "\u202d", "\u202e", "\u2066", "\u2067", "\u2068", "\u2069"}
+
+
+def iter_files(root: Path):
+    if root.is_file():
+        yield root
+        return
+    for path in root.rglob("*"):
+        if path.is_file():
+            yield path
+
+
+def should_scan(path: Path) -> bool:
+    return path.suffix.lower() in TEXT_EXTENSIONS or path.name in {"SKILL.md", "README.md"}
+
+
+def load_text(path: Path):
+    raw = path.read_bytes()
+    if b"\x00" in raw:
+        return None
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("utf-8", errors="replace")
+
+
+def classify(char: str):
+    if ord(char) <= 127:
+        return None
+    if char in ZERO_WIDTH:
+        return "zero_width"
+    if char in BIDI_CONTROLS:
+        return "bidi_control"
+    if char == "\u00a0":
+        return "nonbreaking_space"
+    if char == "\u00ad":
+        return "soft_hyphen"
+    category = unicodedata.category(char)
+    if category in {"Cf", "Cc", "Cs", "Co", "Cn"}:
+        return f"unicode_category_{category}"
+    if char == "\ufffd":
+        return "utf8_replacement_character"
+    return None
+
+
+def scan_file(path: Path):
+    text = load_text(path)
+    if text is None:
+        return []
+
+    findings = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        for column_no, char in enumerate(line, start=1):
+            kind = classify(char)
+            if kind:
+                findings.append(
+                    {
+                        "path": str(path),
+                        "line": line_no,
+                        "column": column_no,
+                        "kind": kind,
+                        "codepoint": f"U+{ord(char):04X}",
+                        "name": unicodedata.name(char, "UNKNOWN"),
+                        "line_text": line.strip(),
+                    }
+                )
+    return findings
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Scan skill files for suspicious Unicode characters.")
+    parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+    parser.add_argument("paths", nargs="+", help="Files or directories to scan")
+    args = parser.parse_args()
+
+    roots = [Path(path).expanduser().resolve() for path in args.paths]
+    files = []
+    for root in roots:
+        if not root.exists():
+            print(f"missing: {root}", file=sys.stderr)
+            return 2
+        for path in iter_files(root):
+            if should_scan(path):
+                files.append(path)
+
+    unique_files = sorted(set(files))
+    findings = []
+    for path in unique_files:
+        findings.extend(scan_file(path))
+
+    result = {
+        "scanner": "unicode-risks",
+        "scanned_files": len(unique_files),
+        "findings": findings,
+        "status": "clean" if not findings else "review",
+    }
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(f"scanned_files={result['scanned_files']}")
+        print(f"findings={len(findings)}")
+        print(f"status={result['status']}")
+        for finding in findings:
+            print(
+                f"{finding['kind']} {finding['codepoint']} {finding['name']} "
+                f"{finding['path']}:{finding['line']}:{finding['column']} :: {finding['line_text']}"
+            )
+
+    return 0 if not findings else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

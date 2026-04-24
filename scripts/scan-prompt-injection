@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+TEXT_EXTENSIONS = {
+    ".md",
+    ".txt",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".py",
+    ".sh",
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".html",
+    ".css",
+}
+
+RULES = [
+    (
+        "instruction_override",
+        "high",
+        re.compile(
+            r"\bignore\b.{0,40}\b(previous|prior|above|earlier)\b.{0,40}\binstructions?\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "role_override",
+        "medium",
+        re.compile(
+            r"\b(you are now|from now on|act as)\b.{0,60}\b(system|developer|administrator|unrestricted|another assistant)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "prompt_exfiltration",
+        "high",
+        re.compile(
+            r"\b(reveal|show|print|dump|repeat|display)\b.{0,60}\b(system prompt|developer message|hidden prompt|hidden instructions|prompt)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "policy_bypass",
+        "high",
+        re.compile(
+            r"\b(bypass|override|disable|ignore)\b.{0,40}\b(safety|policy|guardrails|restrictions?)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "secret_exfiltration",
+        "high",
+        re.compile(
+            r"\b(reveal|print|show|dump|leak|exfiltrat\w*|steal)\b.{0,60}\b(api[_ -]?key|token|password|secret|credential|environment variable|env var)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "concealment",
+        "medium",
+        re.compile(r"\b(do not tell|don't tell|never mention|hide this|conceal)\b", re.IGNORECASE),
+    ),
+    (
+        "tool_use_coercion",
+        "high",
+        re.compile(
+            r"\b(run|execute|call|invoke)\b.{0,50}\b(shell|terminal|bash|curl|wget|python|node|chmod|sudo)\b",
+            re.IGNORECASE,
+        ),
+    ),
+]
+
+
+def iter_files(root: Path):
+    if root.is_file():
+        yield root
+        return
+    for path in root.rglob("*"):
+        if path.is_file():
+            yield path
+
+
+def should_scan(path: Path) -> bool:
+    return path.suffix.lower() in TEXT_EXTENSIONS or path.name in {"SKILL.md", "README.md"}
+
+
+def load_text(path: Path):
+    raw = path.read_bytes()
+    if b"\x00" in raw:
+        return None
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("utf-8", errors="replace")
+
+
+def scan_file(path: Path):
+    text = load_text(path)
+    if text is None:
+        return []
+
+    findings = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        for rule_name, severity, pattern in RULES:
+            if pattern.search(line):
+                findings.append(
+                    {
+                        "path": str(path),
+                        "line": line_no,
+                        "rule": rule_name,
+                        "severity": severity,
+                        "excerpt": line.strip(),
+                    }
+                )
+    return findings
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Scan skill files for prompt-injection markers.")
+    parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+    parser.add_argument("paths", nargs="+", help="Files or directories to scan")
+    args = parser.parse_args()
+
+    roots = [Path(path).expanduser().resolve() for path in args.paths]
+    files = []
+    for root in roots:
+        if not root.exists():
+            print(f"missing: {root}", file=sys.stderr)
+            return 2
+        for path in iter_files(root):
+            if should_scan(path):
+                files.append(path)
+
+    unique_files = sorted(set(files))
+    findings = []
+    for path in unique_files:
+        findings.extend(scan_file(path))
+
+    result = {
+        "scanner": "prompt-injection",
+        "scanned_files": len(unique_files),
+        "findings": findings,
+        "status": "clean" if not findings else "review",
+    }
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(f"scanned_files={result['scanned_files']}")
+        print(f"findings={len(findings)}")
+        print(f"status={result['status']}")
+        for finding in findings:
+            print(
+                f"{finding['severity']} {finding['rule']} "
+                f"{finding['path']}:{finding['line']} :: {finding['excerpt']}"
+            )
+
+    return 0 if not findings else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

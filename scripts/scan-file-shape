@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import os
+import stat
+import sys
+from pathlib import Path
+
+ARCHIVE_EXTENSIONS = {".zip", ".tar", ".tgz", ".gz", ".bz2", ".xz", ".7z", ".rar"}
+BINARY_EXTENSIONS = {".bin", ".exe", ".dll", ".dylib", ".so", ".o", ".a", ".wasm", ".jar", ".class"}
+DEPENDENCY_DIRS = {"node_modules", "vendor", ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache"}
+PACKAGE_MANIFESTS = {"package.json", "pyproject.toml", "Cargo.toml", "go.mod", "Gemfile"}
+MAX_FILE_BYTES = 2 * 1024 * 1024
+MAX_DEPTH = 8
+
+
+def rel_depth(path: Path, root: Path) -> int:
+    try:
+        return len(path.relative_to(root).parts)
+    except ValueError:
+        return len(path.parts)
+
+
+def has_nul(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            return b"\x00" in handle.read(4096)
+    except OSError:
+        return False
+
+
+def add(findings, root, path, kind, severity, detail):
+    findings.append(
+        {
+            "path": str(path),
+            "relative_path": str(path.relative_to(root)) if path.is_relative_to(root) else str(path),
+            "kind": kind,
+            "severity": severity,
+            "detail": detail,
+        }
+    )
+
+
+def scan_root(root: Path):
+    findings = []
+    for current, dirs, files in os.walk(root, topdown=True, followlinks=False):
+        current_path = Path(current)
+
+        for dirname in list(dirs):
+            child = current_path / dirname
+            if child.is_symlink():
+                add(findings, root, child, "symlink", "high", "Directory symlink inside candidate.")
+                dirs.remove(dirname)
+                continue
+            if dirname == ".git":
+                add(findings, root, child, "git_metadata", "high", "Git metadata is not allowed in skills.")
+                dirs.remove(dirname)
+                continue
+            if dirname in DEPENDENCY_DIRS:
+                add(findings, root, child, "dependency_directory", "high", "Vendored dependency or cache directory.")
+                dirs.remove(dirname)
+                continue
+            if dirname.startswith("."):
+                add(findings, root, child, "hidden_directory", "medium", "Hidden directories require review.")
+            if rel_depth(child, root) > MAX_DEPTH:
+                add(findings, root, child, "deep_tree", "medium", f"Path depth exceeds {MAX_DEPTH}.")
+
+        for filename in files:
+            path = current_path / filename
+            suffix = path.suffix.lower()
+            try:
+                mode = path.lstat().st_mode
+                size = path.lstat().st_size
+            except OSError as error:
+                add(findings, root, path, "unreadable_file", "high", str(error))
+                continue
+
+            if stat.S_ISLNK(mode):
+                add(findings, root, path, "symlink", "high", "File symlink inside candidate.")
+                continue
+            if filename.startswith("."):
+                add(findings, root, path, "hidden_file", "medium", "Hidden files require review.")
+            if mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH):
+                add(findings, root, path, "executable_file", "high", "Executable bit is set.")
+            if suffix in ARCHIVE_EXTENSIONS:
+                add(findings, root, path, "archive_file", "high", "Archives are not allowed in verified skills.")
+            if suffix in BINARY_EXTENSIONS or has_nul(path):
+                add(findings, root, path, "binary_file", "high", "Binary-like file requires manual review.")
+            if filename in PACKAGE_MANIFESTS:
+                add(findings, root, path, "package_manifest", "medium", "Package manifests can introduce executable behavior.")
+            if size > MAX_FILE_BYTES:
+                add(findings, root, path, "large_file", "medium", f"File is larger than {MAX_FILE_BYTES} bytes.")
+            if rel_depth(path, root) > MAX_DEPTH:
+                add(findings, root, path, "deep_file", "medium", f"Path depth exceeds {MAX_DEPTH}.")
+
+    return findings
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Scan skill directory shape for unsafe files.")
+    parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+    parser.add_argument("paths", nargs="+", help="Skill directories to scan")
+    args = parser.parse_args()
+
+    roots = [Path(path).expanduser().resolve() for path in args.paths]
+    findings = []
+    for root in roots:
+        if not root.exists():
+            print(f"missing: {root}", file=sys.stderr)
+            return 2
+        if root.is_file():
+            print(f"not_directory: {root}", file=sys.stderr)
+            return 2
+        findings.extend(scan_root(root))
+
+    result = {
+        "scanner": "file-shape",
+        "scanned_roots": len(roots),
+        "findings": findings,
+        "status": "clean" if not findings else "review",
+    }
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(f"scanned_roots={result['scanned_roots']}")
+        print(f"findings={len(findings)}")
+        print(f"status={result['status']}")
+        for finding in findings:
+            print(
+                f"{finding['severity']} {finding['kind']} "
+                f"{finding['path']} :: {finding['detail']}"
+            )
+
+    return 0 if not findings else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

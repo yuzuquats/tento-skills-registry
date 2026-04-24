@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+  printf 'usage: %s <skill-dir> [<skill-dir> ...]\n' "${0##*/}" >&2
+  exit 2
+fi
+
+issues=0
+printf 'skills_inventory=%s\n' "$#"
+
+for skill_dir in "$@"; do
+  if [ ! -d "$skill_dir" ]; then
+    printf 'review missing_directory %s\n' "$skill_dir" >&2
+    issues=$((issues + 1))
+    continue
+  fi
+
+  skill_name="${skill_dir##*/}"
+  readme_state="missing"
+  evals_state="missing"
+  references_state="absent"
+  rules_state="absent"
+  notes=()
+
+  if [ ! -f "$skill_dir/SKILL.md" ]; then
+    notes+=("missing SKILL.md")
+    issues=$((issues + 1))
+  fi
+
+  if [ -f "$skill_dir/README.md" ]; then
+    readme_state="present"
+  fi
+
+  if [ -d "$skill_dir/evals" ]; then
+    if [ -f "$skill_dir/evals/evals.json" ]; then
+      evals_state="present"
+    else
+      evals_state="invalid"
+      notes+=("evals/ present without evals/evals.json")
+      issues=$((issues + 1))
+    fi
+  fi
+
+  if [ -d "$skill_dir/references" ]; then
+    reference_count=0
+    while IFS= read -r _; do
+      reference_count=$((reference_count + 1))
+    done < <(find "$skill_dir/references" -mindepth 1 -print)
+
+    if [ "$reference_count" -eq 0 ]; then
+      references_state="empty"
+      notes+=("empty references/")
+      issues=$((issues + 1))
+    else
+      references_state="$reference_count"
+    fi
+  fi
+
+  if [ -d "$skill_dir/rules" ]; then
+    rules_count=0
+    while IFS= read -r _; do
+      rules_count=$((rules_count + 1))
+    done < <(find "$skill_dir/rules" -mindepth 1 -print)
+
+    if [ "$rules_count" -eq 0 ]; then
+      rules_state="empty"
+      notes+=("empty rules/")
+      issues=$((issues + 1))
+    else
+      rules_state="$rules_count"
+    fi
+  fi
+
+  status="clean"
+  if [ "${#notes[@]}" -gt 0 ]; then
+    status="review"
+  fi
+
+  printf 'skill=%s readme=%s evals=%s references=%s rules=%s status=%s\n' \
+    "$skill_name" \
+    "$readme_state" \
+    "$evals_state" \
+    "$references_state" \
+    "$rules_state" \
+    "$status"
+
+  if [ "${#notes[@]}" -gt 0 ]; then
+    printf 'notes=%s\n' "$(IFS='; '; printf '%s' "${notes[*]}")"
+  fi
+done
+
+printf 'findings=%s\n' "$issues"
+if [ "$issues" -eq 0 ]; then
+  printf 'status=clean\n'
+  exit 0
+fi
+
+printf 'status=review\n'
+exit 1

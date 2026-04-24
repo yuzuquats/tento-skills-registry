@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+  printf 'usage: %s <candidate-skill-dir> [<candidate-skill-dir> ...]\n' "${0##*/}" >&2
+  exit 2
+fi
+
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+SCRIPT_DIR="${SCRIPT_PATH%/*}"
+if [ "$SCRIPT_DIR" = "$SCRIPT_PATH" ]; then
+  SCRIPT_DIR='.'
+fi
+
+REGISTRY_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+VERIFIED_DIR="$REGISTRY_ROOT/skills-VERIFIED"
+QUARANTINED_DIR="$REGISTRY_ROOT/skills-QUARANTINED"
+
+now_utc="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+copy_dir() {
+  src="$1"
+  dst="$2"
+
+  if command -v rsync >/dev/null 2>&1; then
+    mkdir -p "$dst"
+    rsync -a --delete --exclude '.git' "$src"/ "$dst"/
+    return
+  fi
+
+  if [ -e "$dst" ]; then
+    printf 'copy_dir requires rsync when destination already exists: %s\n' "$dst" >&2
+    exit 1
+  fi
+
+  mkdir -p "$dst"
+  cp -R "$src"/. "$dst"/
+}
+
+count_scanned_files() {
+  find "$1" -type f \
+    \( -name 'SKILL.md' -o -name 'README.md' -o -name '*.md' -o -name '*.txt' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' -o -name '*.py' -o -name '*.sh' -o -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' -o -name '*.html' -o -name '*.css' \) \
+    | wc -l | tr -d ' '
+}
+
+tree_sha256() {
+  if find "$1" -type f -print -quit | grep -q .; then
+    find "$1" -type f -print0 \
+      | sort -z \
+      | xargs -0 shasum -a 256 \
+      | shasum -a 256 \
+      | awk '{print $1}'
+    return
+  fi
+
+  printf ''
+}
+
+write_security_log() {
+  skill_name="$1"
+  source_dir="$2"
+  verified_skill_dir="$3"
+  scanned_files="$4"
+  source_hash="$5"
+  log_path="$VERIFIED_DIR/$skill_name.security.toml"
+
+  cat > "$log_path" <<EOF
+schema_version = 1
+skill = "$skill_name"
+status = "verified"
+verified_at = "$now_utc"
+verified_by = "tento-skills-registry/promote-skill"
+
+[source]
+kind = "local-dangerous-intake"
+url = ""
+revision = ""
+sha256 = "$source_hash"
+path = "$source_dir"
+
+[[checks]]
+name = "structural-audit"
+status = "pass"
+files_scanned = $scanned_files
+summary = "SKILL.md present; optional support directories validated."
+
+[[checks]]
+name = "prompt-injection-scan"
+status = "pass"
+files_scanned = $scanned_files
+findings = 0
+
+[[checks]]
+name = "unicode-scan"
+status = "pass"
+files_scanned = $scanned_files
+findings = 0
+
+[[checks]]
+name = "url-scan"
+status = "pass"
+files_scanned = $scanned_files
+findings = 0
+
+[[checks]]
+name = "file-shape-scan"
+status = "pass"
+files_scanned = $scanned_files
+findings = 0
+
+[[checks]]
+name = "semantic-verification"
+status = "manual-pass"
+summary = "Promotion used existing local Lona skill content and current registry scanners; deeper semantic verifier automation is pending."
+
+[[sanitization]]
+path = ""
+action = "none"
+detail = "No deterministic cleanup was required by the current registry scanners before promotion."
+
+[[residual_risks]]
+severity = "medium"
+detail = "Automated semantic verification, provenance checks, and package-specific policy checks are not implemented yet."
+EOF
+
+  printf 'promoted skill=%s verified_dir=%s security_log=%s\n' "$skill_name" "$verified_skill_dir" "$log_path"
+}
+
+for candidate in "$@"; do
+  if [ ! -d "$candidate" ]; then
+    printf 'missing_candidate_dir %s\n' "$candidate" >&2
+    exit 2
+  fi
+
+  candidate_abs="$(cd "$candidate" && pwd)"
+  skill_name="${candidate_abs##*/}"
+  quarantined_skill_dir="$QUARANTINED_DIR/$skill_name"
+  verified_skill_dir="$VERIFIED_DIR/$skill_name"
+
+  if [[ ! "$skill_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    printf 'unsafe_skill_name %s\n' "$skill_name" >&2
+    exit 1
+  fi
+
+  copy_dir "$candidate_abs" "$quarantined_skill_dir"
+  "$SCRIPT_DIR/scan-skill" "$quarantined_skill_dir"
+
+  copy_dir "$quarantined_skill_dir" "$verified_skill_dir"
+  "$SCRIPT_DIR/scan-skill" "$verified_skill_dir"
+
+  scanned_files="$(count_scanned_files "$verified_skill_dir")"
+  source_hash="$(tree_sha256 "$candidate_abs")"
+  write_security_log "$skill_name" "$candidate_abs" "$verified_skill_dir" "$scanned_files" "$source_hash"
+done

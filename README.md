@@ -13,13 +13,16 @@ consumption.
 
 ```bash
 scripts/scan-skill <skill-dir> [<skill-dir> ...]
+scripts/promote-skill <candidate-skill-dir> [<candidate-skill-dir> ...]
 scripts/registry-check
 ```
 
 `scan-skill` runs the structural audit, prompt-injection scanner, Unicode risk
 scanner, risky URL scanner, and file-shape scanner. `registry-check` validates
 every current verified skill and checks that each has a sibling
-`*.security.toml` log.
+`*.security.toml` log. `promote-skill` copies a candidate through
+`skills-QUARANTINED`, rescans it, copies it into `skills-VERIFIED`, rescans it,
+and writes the sibling security log.
 
 The current implementation is phase one of `DESIGN.md`; deterministic
 sanitization, semantic verification automation, promotion, and acquisition are

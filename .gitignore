@@ -1,0 +1,13 @@
+# Raw intake, quarantine, and temporary clone/download areas are local only.
+/skills-DANGEROUS/**
+/skills-QUARANTINED/**
+/tmp/**
+
+# Verified acquired skills and generated security logs are local registry state.
+/skills-VERIFIED/**
+
+# Registry builtin skills are source-controlled because they operate the intake
+# and promotion flow itself. Add future builtins with explicit allowlist rules.
+!/skills-VERIFIED/
+!/skills-VERIFIED/acquire-web-skill/
+!/skills-VERIFIED/acquire-web-skill/**

@@ -1,15 +1,15 @@
 schema_version = 1
 skill = "acquire-web-skill"
 status = "verified"
-verified_at = "2026-04-24T07:15:48Z"
+verified_at = "2026-04-27T07:56:46Z"
 verified_by = "tento-skills-registry/promote-skill"
 
 [source]
 kind = "local-dangerous-intake"
 url = ""
 revision = ""
-sha256 = "7e037f7f5e8b0429870b1166d0f8b9c2c1ba087b826abc74ba2735d533604184"
-path = "/Users/james/workspace/tento-sweatshop/skills/acquire-web-skill"
+sha256 = "4546fca26f1b14e98459b74a09df54e700679b935c215ca5c1b7ece7589c2a3f"
+path = "/Users/james/workspace/tento-skills-registry/skills-DANGEROUS/acquire-web-skill"
 
 [[checks]]
 name = "structural-audit"

@@ -24,17 +24,24 @@ requests, risky URLs, hidden Unicode, or executable payloads.
    evaluating public skills.
 3. Collect candidate source, provenance, expected benefit, intended agent users,
    and known risks.
-4. Create a board approval task that asks the board to approve or deny skill
-   intake.
-5. Include a board command in the task description:
-   `sudo ./run-board verify-skill <candidate-skill-dir>`.
-6. If the board approves, the board runs the command. This copies the candidate
-   through `tento-skills-registry/skills-DANGEROUS/`,
-   `tento-skills-registry/skills-QUARANTINED/`, and finally
+4. Download or create the candidate as an inert local directory with a
+   `SKILL.md`. Do not load it as an active skill.
+5. Run the agent-safe intake command:
+   `./dispatch tento-sweatshop.run request-skill-intake --candidate_skill_dir <candidate-skill-dir> --workspace <company-workspace>`.
+   In a direct checkout outside Docker, use
+   `./run request-skill-intake --candidate_skill_dir <candidate-skill-dir> --workspace <company-workspace>`.
+6. The intake command copies the candidate into
+   `tento-skills-registry/skills-DANGEROUS/` and creates a board approval task
+   that asks the board to approve or deny verification for all pending
+   dangerous skills.
+7. The board task must include this command:
+   `sudo ./run-board verify-pending-skills`.
+8. If the board approves, the board runs the command. This copies every pending
+   candidate through `tento-skills-registry/skills-QUARANTINED/` and finally
    `tento-skills-registry/skills-VERIFIED/` only after scanners pass.
-7. After the skill is verified, symlink it from the company `skills/` directory
+9. After the skill is verified, symlink it from the company `skills/` directory
    to `../skills-VERIFIED/<skill-name>`.
-8. Assign the available verified skill to the necessary agents by updating
+10. Assign the available verified skill to the necessary agents by updating
    `__agents/organization.toml` and their instructions.
 
 Giving an agent access to an already verified skill does not require board
